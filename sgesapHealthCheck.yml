@@ -1,0 +1,27 @@
+-
+  name: Cluster health check.
+  hosts: all
+  become: yes
+  become_method: su
+  become_flags: '-s /bin/bash'
+
+  environment:
+    PATH: "{{ ansible_env.PATH + ':/usr/local/cmcluster/bin' + ':/opt/cmcluster/bin'}}"
+
+  vars_files:
+    - vars/sgVars.yml
+
+  tasks:
+    - name: Check inventory argument.
+      fail:
+        msg: 'The -i (inventory) argument is mandatory.'
+      when: not inventory_file | regex_search(',')
+
+    - name: Trigger basic checks.
+      include_tasks: "{{ basePath }}/tasks/basicChecks.yml"
+
+    - name: Trigger advanced checks.
+      include_tasks: "{{ basePath }}/tasks/advancedChecks.yml"
+
+    - name: Save report.
+      include_tasks: "{{ basePath }}/tasks/saveSGReport.yml"
