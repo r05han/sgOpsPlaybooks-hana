@@ -1,0 +1,126 @@
+-
+  name: Stop secondary package.
+  hosts: all
+  become: yes
+  become_method: su
+  become_flags: '-s /bin/bash'
+
+  environment:
+    PATH: "{{ ansible_env.PATH + ':/usr/local/cmcluster/bin' + ':/opt/cmcluster/bin'}}"
+
+  vars_files:
+    - vars/sgVars.yml
+
+  tasks:
+    - name: Checking inventory argument.
+      fail:
+        msg: 'The -i (inventory) argument is mandatory.'
+      when: not inventory_file | regex_search(',')
+
+    - name: Trigger basic checks.
+      include_tasks: "{{ basePath }}/tasks/basicChecks.yml"
+
+    - name: Save report.
+      include_tasks: "{{ basePath }}/tasks/saveSGReport.yml"
+
+    - name: Abort if any of the cluster nodes are not accessible.
+      fail:
+        msg: "Please make sure all cluster nodes are accessible / powered on."
+      when: ping1 is failed or ping2 is failed
+
+    - name: Abort if Primary package is down.
+      fail:
+        msg: "Primary package {{ primPackage.stdout }} seems to be down."
+      when: primPackageStatus.stdout != "up"
+
+    - name: Abort if Secondary package is down.
+      fail:
+        msg: "No action required. Secondary package {{ secPackage.stdout }} is already halted."
+      when: secPackageStatus.stdout != "up"
+
+    - name: Abort if cluster nodes don't have identical SG version.
+      fail:
+        msg: "Please make sure the SG version is identical on all cluster nodes."
+      when: primSGvers.stdout != secSGvers.stdout 
+
+    - name: Identify all the cluster nodes.
+      shell: cmviewcl -v -fline |awk -F\| '/^node/ {print $2}' |awk -F= '/^name/ {print $2}'
+      register: result
+
+    - name: Capture name of Secondary node in a variable.
+      set_fact:
+        secNode: "{{ item }}"
+      loop: "{{ result.stdout_lines }}"
+      when: item != primNode.stdout
+
+    - name: Run cmhaltnode command on node {{ secNode }}. 
+      command: cmhaltnode -f
+      delegate_to: "{{ secNode }}"
+
+    - name: Wait for Secondary package {{ secPackage.stdout }} to reach status 'down' on node {{ secNode }}.
+      shell: cmviewcl -v -fline -p {{ secPackage.stdout }} |awk -F= '/^status/ {print $2}'
+      register: result
+      until: result.stdout == "down"
+      retries: 60
+      delay: 5 #Value of 'retries' and 'delay' must be adjusted based on DB size.
+
+    - name: Check status of HANA DB.
+      shell: ps -ef |egrep "hdbindexserver" |wc -l
+      delegate_to: "{{ secNode }}"
+      register: hdbStatus
+
+    - pause: #Ask for confirmation before proceeding.
+        prompt: "{{ 'HANA DB on Secondary node is up and running. Do you want to stop it? [y/n]' }}"
+      register: stopHDB
+      when: hdbStatus.stdout > "2"
+
+    - name: Stop HDB if user chose 'y'.
+      shell: bash -lc "sapcontrol -nr {{nr}} -function StopSystem HDB"
+      become_user: "{{ sidadm }}"
+      delegate_to: "{{ secNode }}"
+      when: stopHDB is not skipped and stopHDB.user_input == "y" and hdbStatus.stdout > "2"
+
+    - name: Wait till HDB is stopped.
+      shell: ps -ef |egrep "hdbindexserver" |wc -l
+      register: result
+      until: result.stdout == "2"
+      retries: 180
+      delay: 10 #Value for 'retries' and 'delay' must be adjusted based on DB size and past trend.
+      when: stopHDB is not skipped and stopHDB.user_input == "y" and hdbStatus.stdout > "2"
+      delegate_to: "{{ secNode }}"
+
+    - name: Check status of Autorun for {{ secPackage.stdout }}.
+      shell: cmviewcl -v -fline -p {{ secPackage.stdout }} |egrep -i "^autorun" |awk -F= '{print $2}'
+      register: autorun
+
+    - name: Disable autorun {{ secPackage.stdout }}.
+      shell: cmmodpkg -d {{ secPackage.stdout }}
+      when: autorun.stdout == "enabled"
+
+    - name: Set value of AUTOSTART_CMCLD to 0.
+      lineinfile:
+        path: "{{ (ansible_os_family == 'Suse') | ternary('/opt/cmcluster/conf/cmcluster.rc', '/usr/local/cmcluster/conf/cmcluster.rc') }}"
+        regexp: ^AUTOSTART_CMCLD=[0-9]
+        line: AUTOSTART_CMCLD=0
+      delegate_to: "{{ secNode }}"
+
+    - name: Status summary.
+      debug:
+        msg:
+          - -- Secondary package and HDB instance on node {{ secNode }} has been stopped.
+          - -- After completion of maintenance please run the playbook 'startSecPkg-<version>.yml' to activate Secondary package.
+      when: stopHDB is not skipped and stopHDB.user_input == "y" and hdbStatus.stdout > "2"
+
+    - name: Status summary.
+      debug:
+        msg:
+          - -- Secondary package stopped and HDB instance on node {{ secNode }} has been left running.
+          - -- After completion of maintenance please run the playbook 'startSecPkg-<version>.yml' to activate Secondary package.
+      when: stopHDB is not skipped and stopHDB.user_input != "y" and hdbStatus.stdout > "2"
+
+    - name: Status summary.
+      debug:
+        msg:
+          - -- Secondary package stopped and HDB instance was already stopped on node {{ secNode }}.
+          - -- After completion of maintenance please run the playbook 'startSecPkg-<version>.yml' to activate Secondary package.
+      when: hdbStatus.stdout <= "2"

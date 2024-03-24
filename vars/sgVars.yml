@@ -1,0 +1,26 @@
+
+red: '\x1b[31m'
+green: '\x1b[32m'
+cyan: '\x1b[36m'
+bold: '\x1b[1m'
+underline: '\x1b[4m'
+reset: '\x1b[0m'
+status: ['Cluster status:']
+errors: ['Health Check errors: ']
+warnings: ['Health Check warnings: ']
+errFlag: "down"
+warnFlag: "down"
+
+basePath: /root/playbooks/sgOps
+
+version: 2022.02-0
+
+osDistro: "{{ 'SUSE Linux Enterprise Server for SAP Applications ' + ansible_distribution_major_version + ' SP' + ansible_distribution_release if  ansible_os_family  == 'Suse' else 'Red Hat Enterprise Linux for SAP Solutions ' + ansible_distribution_version }}"
+
+sgReport: "------------------------------------------------------------------------------------------------------\n csPlaybook Version  : {{ version }}\n Date                : {{ ansible_date_time.weekday }}, {{ ansible_date_time.date }}\n Hostname            : {{ ansible_hostname }}\n OS Distribution     : {{ osDistro }}\n HANA version        : {{ hdbVers }}\n Serviceguard version: {{ primSGvers.stdout }}\n Cluster name        : {{ clusterName }}\n DB name             : {{ sid }}\n------------------------------------------------------------------------------------------------------\n\n\n\nItems checked                          Result                      Comment\n"
+
+sgReportLocation: /hpe/reports/sgOps
+
+sgReportFile: sgReport_{{ sid }}_{{ ansible_date_time.date }}_{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}.txt
+
+spacing: " ..................... "

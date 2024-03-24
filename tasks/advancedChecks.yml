@@ -1,0 +1,169 @@
+- name: Identify license type of {{ nodeNames.stdout_lines[0] }}.
+  shell: cmgetlicense -fline |awk -F= '/license_type=/ {print $2}' || /bin/true
+  register: primLicType
+  delegate_to: "{{  nodeNames.stdout_lines[0] }}"
+
+- name: Identify license type of {{ nodeNames.stdout_lines[1] }}.
+  shell: cmgetlicense -fline |awk -F= '/license_type=/ {print $2}' || /bin/true
+  register: secLicType
+  delegate_to: "{{  nodeNames.stdout_lines[1] }}"
+
+- name: Identify license validity of {{ nodeNames.stdout_lines[0] }}.
+  shell: cmgetlicense -fline |awk -F= '/expiry_date=/ {print $2}' || /bin/true
+  register: primLicExp
+  delegate_to: "{{ nodeNames.stdout_lines[0] }}"
+
+- name: Identify license validity of {{ nodeNames.stdout_lines[1] }}.
+  shell: cmgetlicense -fline |awk -F= '/expiry_date=/ {print $2}' || /bin/true
+  register: secLicExp
+  delegate_to: "{{ nodeNames.stdout_lines[1] }}"
+
+- name: Identify major HANA version on {{ nodeNames.stdout_lines[0] }}.
+  shell: egrep -i fullversion /usr/sap/{{ sid }}/SYS/exe/hdb/manifest |awk '{print $2}' |awk -F. '{print $1}' || /bin/true
+  delegate_to: "{{ nodeNames.stdout_lines[0] }}"
+  register: hdbMajorPrim
+
+- name: Identify minor HANA version on {{ nodeNames.stdout_lines[0] }}.
+  shell: egrep -i fullversion /usr/sap/{{ sid }}/SYS/exe/hdb/manifest |awk '{print $2}' |awk -F. '{print $3}' || /bin/true
+  delegate_to: "{{ nodeNames.stdout_lines[0] }}"
+  register: hdbMinorPrim
+
+- name: Identify major HANA version on {{ nodeNames.stdout_lines[1] }}.
+  shell: egrep -i fullversion /usr/sap/{{ sid }}/SYS/exe/hdb/manifest |awk '{print $2}' |awk -F. '{print $1}' || /bin/true
+  delegate_to: "{{ nodeNames.stdout_lines[1] }}"
+  register: hdbMajorSec
+
+- name: Identify minor HANA version on {{ nodeNames.stdout_lines[1] }}.
+  shell: egrep -i fullversion /usr/sap/{{ sid }}/SYS/exe/hdb/manifest |awk '{print $2}' |awk -F. '{print $3}' || /bin/true
+  delegate_to: "{{ nodeNames.stdout_lines[1] }}"
+  register: hdbMinorSec
+
+- name: Copy safesync.ini to {{ nodeNames.stdout_lines[0] }}.
+  copy:
+    src: "{{ (ansible_os_family == 'Suse') | ternary(basePath + '/iniTemplates/safesync-SLES.ini',basePath + '/iniTemplates/safesync-RHEL.ini') }}"
+    dest: /tmp/safesync.ini
+  delegate_to: "{{ nodeNames.stdout_lines[0] }}"
+
+- name: Validate safesync parameters in {{ nodeNames.stdout_lines[0] }}.
+  shell: grep -Fxvf /usr/sap/{{ sid }}/SYS/global/hdb/custom/config/global.ini /tmp/safesync.ini || /bin/true
+  register: primDiff
+  delegate_to: "{{ nodeNames.stdout_lines[0] }}"
+
+- name: Cleanup /tmp/safesync.ini from {{ nodeNames.stdout_lines[0] }}.
+  file:
+    path: /tmp/safesync.ini
+    state: absent
+  delegate_to: "{{ nodeNames.stdout_lines[0] }}"
+
+- name: Copy safesync.ini to {{ nodeNames.stdout_lines[1] }}.
+  copy:
+    src: "{{ (ansible_os_family == 'Suse') | ternary(basePath + '/iniTemplates/safesync-SLES.ini',basePath + '/iniTemplates/safesync-RHEL.ini') }}"
+    dest: /tmp/safesync.ini
+  delegate_to: "{{ nodeNames.stdout_lines[1] }}"
+
+- name: Validate safesync parameters in {{ nodeNames.stdout_lines[1] }}.
+  shell: grep -Fxvf /usr/sap/{{ sid }}/SYS/global/hdb/custom/config/global.ini /tmp/safesync.ini || /bin/true
+  register: secDiff
+  delegate_to: "{{ nodeNames.stdout_lines[1] }}"
+
+- name: Cleanup /tmp/safesync.ini from {{ nodeNames.stdout_lines[1] }}.
+  file:
+    path: /tmp/safesync.ini
+    state: absent
+  delegate_to: "{{ nodeNames.stdout_lines[1] }}"
+
+- name: Validate Safesync parameters in {{ primPackage.stdout }}.
+  shell: cmviewcl -v -fline -p {{ primPackage.stdout }} |awk -F= '/safesync{{ sid }}_genres\|name/ {print $2}' || /bin/true
+  register: primPkgSafesync
+
+- name: Validate STO parameters in {{ primPackage.stdout }}.
+  shell: cmviewcl -v -fline -p {{ primPackage.stdout }} |egrep hdb_sto || /bin/true
+  register: stoPrim
+
+- name: Validate STO parameters in {{ secPackage.stdout }}.
+  shell: cmviewcl -v -fline -p {{ secPackage.stdout }} |egrep hdb_sto || /bin/true
+  register: stoSec
+
+- name: Validate AUTOSTART_CMCLD parameter on {{ nodeNames.stdout_lines[0] }}.
+  shell: "{{ (ansible_os_family == 'RedHat') | ternary('cat /usr/local/cmcluster/conf/cmcluster.rc | egrep ^AUTOSTART_CMCLD || /bin/true','cat /opt/cmcluster/conf/cmcluster.rc | egrep ^AUTOSTART_CMCLD || /bin/true') }}"
+  register: auto1
+  delegate_to: "{{ nodeNames.stdout_lines[0] }}"
+
+- name: Validate AUTOSTART_CMCLD parameter on {{ nodeNames.stdout_lines[1] }}.
+  shell: "{{ (ansible_os_family == 'RedHat') | ternary('cat /usr/local/cmcluster/conf/cmcluster.rc | egrep ^AUTOSTART_CMCLD || /bin/true','cat /opt/cmcluster/conf/cmcluster.rc | egrep ^AUTOSTART_CMCLD || /bin/true') }}"
+  register: auto2
+  delegate_to: "{{ nodeNames.stdout_lines[1] }}"
+
+- name: Validate NODE_TOC_BEHAVIOR parameter on {{ nodeNames.stdout_lines[0] }}.
+  shell: "{{ (ansible_os_family == 'RedHat') | ternary('cat /usr/local/cmcluster/conf/cmcluster.rc | egrep ^NODE_TOC_BEHAVIOR || /bin/true','cat /opt/cmcluster/conf/cmcluster.rc | egrep ^NODE_TOC_BEHAVIOR || /bin/true') }}"
+  register: toc1
+  delegate_to: "{{ nodeNames.stdout_lines[0] }}"
+
+- name: Validate mode of deadman driver on {{ nodeNames.stdout_lines[0] }}.
+  shell: cat /sys/module/deadman/parameters/mode || /bin/true
+  register: deadman1
+  delegate_to: "{{ nodeNames.stdout_lines[0] }}"
+
+- name: Validate NODE_TOC_BEHAVIOR parameter on {{ nodeNames.stdout_lines[1] }}.
+  shell: "{{ (ansible_os_family == 'RedHat') | ternary('cat /usr/local/cmcluster/conf/cmcluster.rc | egrep ^NODE_TOC_BEHAVIOR || /bin/true','cat /opt/cmcluster/conf/cmcluster.rc | egrep ^NODE_TOC_BEHAVIOR || /bin/true',) }}"
+  register: toc2
+  delegate_to: "{{ nodeNames.stdout_lines[1] }}"
+
+- name: Validate mode of deadman driver on {{ nodeNames.stdout_lines[1] }}.
+  shell: cat /sys/module/deadman/parameters/mode || /bin/true
+  register: deadman2
+  delegate_to: "{{ nodeNames.stdout_lines[1] }}"
+
+- name: Validate parameter 'service/halib' on {{ nodeNames.stdout_lines[0] }}.
+  shell: cat /usr/sap/{{ sid }}/SYS/profile/{{ sid }}_HDB{{ nr }}_{{  nodeNames.stdout_lines[0] }} | awk '/^service\/halib/ {print $3}' || /bin/true
+  register: primhalib
+  delegate_to: "{{  nodeNames.stdout_lines[0] }}"
+
+- name: Validate parameter 'service/halib' on {{ nodeNames.stdout_lines[1] }}.
+  shell: cat /usr/sap/{{ sid }}/SYS/profile/{{ sid }}_HDB{{ nr }}_{{ nodeNames.stdout_lines[1] }} | awk '/^service\/halib/ {print $3}' || /bin/true
+  register: sechalib
+  delegate_to: "{{ nodeNames.stdout_lines[1] }}"
+
+- name: Identify total sites in Replication topology.
+  shell: bash -lc "hdbnsutil -sr_state |egrep -i 'host map' -A 6 |awk '{print \$4}' |egrep -v '^$' |wc -l || /bin/true"
+  become_user: "{{ sidadm }}"
+  register: totalSites
+  delegate_to: "{{ nodeNames.stdout_lines[0] }}"
+
+- name: Validate parameter 'register_secondaries_on_takeover' on {{ nodeNames.stdout_lines[0] }}.
+  shell: cat /usr/sap/{{ sid }}/SYS/global/hdb/custom/config/global.ini |egrep -i '^register_secondaries_on_takeover = true' || /bin/true
+  register: regSec1
+  delegate_to: "{{ nodeNames.stdout_lines[0] }}"
+  when: totalSites.stdout > "2"
+
+- name: Validate parameter 'register_secondaries_on_takeover' on {{ nodeNames.stdout_lines[1] }}.
+  shell: cat /usr/sap/{{ sid }}/SYS/global/hdb/custom/config/global.ini |egrep -i '^register_secondaries_on_takeover = true' || /bin/true
+  register: regSec2
+  delegate_to: "{{ nodeNames.stdout_lines[1] }}"
+  when: totalSites.stdout > "2"
+
+- name: Validate parameter 'replicate' on {{ nodeNames.stdout_lines[0] }}
+  shell: egrep "^\s*replicate\s*=\s*true" /usr/sap/{{ sid }}/SYS/global/hdb/custom/config/global.ini || /bin/true
+  register: primIniChk
+  delegate_to: "{{ nodeNames.stdout_lines[0] }}"
+  when: totalSites.stdout > "2"
+
+- name: Validate exclusion rules on {{ nodeNames.stdout_lines[0] }}.
+  shell: egrep -i "^\s*exclusion_global\.ini\/SYSTEM\s*=\s*ha_dr_provider_SGeSAPcl\/\*,\s*system_replication\/ha_dr\*,\s*trace\/ha_dr\*" /usr/sap/{{ sid }}/SYS/global/hdb/custom/config/global.ini || /bin/true
+  register: pExclRule
+  delegate_to: "{{ nodeNames.stdout_lines[0] }}"
+  when: primIniChk is not skipped and primIniChk.stdout is search ('replicate\s*=\s*true')
+
+- name: Validate parameter 'replicate' on {{ nodeNames.stdout_lines[1] }}
+  shell: egrep "^\s*replicate\s*=\s*true" /usr/sap/{{ sid }}/SYS/global/hdb/custom/config/global.ini || /bin/true
+  register: secIniChk
+  delegate_to: "{{ nodeNames.stdout_lines[1] }}"
+  when: totalSites.stdout > "2"
+
+- name: Validate exclusion rules on {{ nodeNames.stdout_lines[1] }}.
+  shell: egrep -i "^\s*exclusion_global\.ini\/SYSTEM\s*=\s*ha_dr_provider_SGeSAPcl\/\*,\s*system_replication\/ha_dr\*,\s*trace\/ha_dr\*" /usr/sap/{{ sid }}/SYS/global/hdb/custom/config/global.ini || /bin/true
+  register: sExclRule
+  delegate_to: "{{ nodeNames.stdout_lines[1] }}"
+  when: secIniChk is not skipped and secIniChk.stdout is search ('replicate\s*=\s*true')
+
+- include_tasks: genAdvReport.yml

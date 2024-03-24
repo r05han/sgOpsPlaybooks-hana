@@ -1,0 +1,25 @@
+- name: Save Health Check Report
+  copy:
+    dest: "{{ sgReportLocation + '/' + sgReportFile }}"
+    content: "{{ sgReport }}"
+  delegate_to: localhost
+
+- name: Summarize Results
+  shell: grep -o "Error" {{ sgReportLocation + '/' + sgReportFile }} | wc -w; grep -o "Warning" {{ sgReportLocation + '/' + sgReportFile }} | wc -w; grep -o "OK" {{ sgReportLocation + '/' + sgReportFile }} | wc -w || /bin/true
+  register: compiledResult
+  delegate_to: localhost
+
+- name: Append Summary (1 of 2)
+  shell: "echo -e '\nSummary :\n\tError = {{ compiledResult.stdout_lines[0] }}\t\tWarning = {{compiledResult.stdout_lines[1] }}\t\tOK = {{ compiledResult.stdout_lines[2] }}\n'"
+  register: summary
+
+- name: Append Summary (2 of 2)
+  lineinfile:
+    path: "{{ sgReportLocation + '/' + sgReportFile }}"
+    line: "{{ summary.stdout }}"
+    insertafter: '^-+$'
+  delegate_to: localhost
+
+- name: Display Summary
+  shell: "echo -e '\n{{ bold }} Summary for system {{ sid }} :{{ reset }}\n\t{{ red }}Error = {{ compiledResult.stdout_lines[0] }}{{ reset }}\t\t{{ cyan }}Warning = {{compiledResult.stdout_lines[1] }}{{ reset }}\t\t{{ green }}OK = {{ compiledResult.stdout_lines[2] }}{{ reset }}\n\n Please refer file {{ bold }}{{ sgReportLocation }}/{{ sgReportFile }}{{ reset }} for detailed Health Check Report.\n' > /dev/tty"
+  delegate_to: localhost
