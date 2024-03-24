@@ -17,7 +17,7 @@ version: 2024.03-0
 
 osDistro: "{{ 'SUSE Linux Enterprise Server for SAP Applications ' + ansible_distribution_major_version + ' SP' + ansible_distribution_release if  ansible_os_family  == 'Suse' else 'Red Hat Enterprise Linux for SAP Solutions ' + ansible_distribution_version }}"
 
-sgReport: "------------------------------------------------------------------------------------------------------\n Playbook Version  : {{ version }}\n Date                : {{ ansible_date_time.weekday }}, {{ ansible_date_time.date }}\n Hostname            : {{ ansible_hostname }}\n OS Distribution     : {{ osDistro }}\n HANA version        : {{ hdbVers }}\n Serviceguard version: {{ primSGvers.stdout }}\n Cluster name        : {{ clusterName }}\n DB name             : {{ sid }}\n------------------------------------------------------------------------------------------------------\n\n\n\nItems checked                          Result                      Comment\n"
+sgReport: "------------------------------------------------------------------------------------------------------\n Playbook Version    : {{ version }}\n Date                : {{ ansible_date_time.weekday }}, {{ ansible_date_time.date }}\n Hostname            : {{ ansible_hostname }}\n OS Distribution     : {{ osDistro }}\n HANA version        : {{ hdbVers }}\n Serviceguard version: {{ primSGvers.stdout }}\n Cluster name        : {{ clusterName }}\n DB name             : {{ sid }}\n------------------------------------------------------------------------------------------------------\n\n\n\nItems checked                          Result                      Comment\n"
 
 sgReportLocation: /hpe/reports/sgOps
 

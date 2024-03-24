@@ -43,10 +43,10 @@
         msg: "Please make sure the SG version is identical on all cluster nodes."
       when: primSGvers.stdout != secSGvers.stdout 
 
-    - name: Abort if SGeSAP_AVOID_DARKENING is not set to 1 on any cluster node.
+    - name: Abort if SGeSAP_AVOID_DARKENING is not set to 2 on any cluster node.
       fail:
-        msg: "Please make sure SGeSAP_AVOID_DARKENING is set to 1 on all cluster nodes."
-      when: darkeningPrim.stdout is not search ('=\\s*1') or darkeningSec.stdout is not search ('=\\s*1')
+        msg: "Please make sure SGeSAP_AVOID_DARKENING is set to 2 on all cluster nodes."
+      when: darkeningPrim.stdout is not search ('=\\s*2') or darkeningSec.stdout is not search ('=\\s*2')
 
     - name: Identify all the cluster nodes.
       shell: cmviewcl -v -fline |awk -F\| '/^node/ {print $2}' |awk -F= '/^name/ {print $2}'
