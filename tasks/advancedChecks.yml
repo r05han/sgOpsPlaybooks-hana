@@ -24,7 +24,7 @@
   register: hdbMajorPrim
 
 - name: Identify minor HANA version on {{ nodeNames.stdout_lines[0] }}.
-  shell: egrep -i fullversion /usr/sap/{{ sid }}/SYS/exe/hdb/manifest |awk '{print $2}' |awk -F. '{print $3}' || /bin/true
+  shell: egrep -i fullversion /usr/sap/{{ sid }}/SYS/exe/hdb/manifest |awk '{print $2}' |awk -F. '{print $3"."$4}' || /bin/true
   delegate_to: "{{ nodeNames.stdout_lines[0] }}"
   register: hdbMinorPrim
 
@@ -34,7 +34,7 @@
   register: hdbMajorSec
 
 - name: Identify minor HANA version on {{ nodeNames.stdout_lines[1] }}.
-  shell: egrep -i fullversion /usr/sap/{{ sid }}/SYS/exe/hdb/manifest |awk '{print $2}' |awk -F. '{print $3}' || /bin/true
+  shell: egrep -i fullversion /usr/sap/{{ sid }}/SYS/exe/hdb/manifest |awk '{print $2}' |awk -F. '{print $3"."$4}' || /bin/true
   delegate_to: "{{ nodeNames.stdout_lines[1] }}"
   register: hdbMinorSec
 
